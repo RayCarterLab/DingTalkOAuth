@@ -1,44 +1,80 @@
-# 钉钉消息发送·用户认证
+# DingTalkOAuth
 
-## 一、主要功能
-* 发送消息：调用钉钉发送消息接口，实现第三方平台向企业发送消息。
-* 获取人员信息：调用钉钉消息接口，实现第三方平获取企业内用户人信息。
+A FastAPI-based OAuth2.0 authentication and messaging integration for **Alibaba DingTalk**, supporting both **cloud** and **local** deployment modes.
 
-## 二、特殊设计
-* 为了让多个环境使用同一个钉钉认证的平台
-* 为了解决内网无法被外网主动访问的问题
-使用【云端部署】+ 【本地部署】的设计模式。
+## 🔧 Features
 
-* 云端部署（DeployMode.CLOUD）
+- **Message Sending**: Call DingTalk APIs to send messages to users in an enterprise.
+- **User Info Retrieval**: Fetch user info from an authorized enterprise using DingTalk APIs.
+- **OAuth2.0 Authentication**: Support for third-party login and user identity retrieval.
 
-使用 Sqlite 作为存储数据库，要求可以访问外网，可以被外网访问。负责发送向钉钉后端发送请求，请求包括向企业内发送消息，获取企业内人员信息。
-* 本地部署（DeployMode.LOCAL）
+## 🧠 Architecture Overview
 
-使用 Postgres 作为数据库，要求可以访问 dingding-be 云端服务，可以被 dingding-be 云端服务访问。钉钉用户的信息存储在本地。
+To support **multiple environments** and **network-isolated local deployments**, this project separates into two coordinated modules:
 
-在前端调用后端服务的时候， 前端会调用两个接口，一个接口访问 dingding-be 钉钉云端服务，一个接口请求 dingding-be 钉钉本地服务。
-云端服务，接收到请求之后，会向阿里钉钉服务请求，获取结果，将结果存储在本地。
-本地服务，接收到请求之后，会向 dingding-be 云端服务请求结果。
+### ☁️ Cloud Deployment (`DeployMode.CLOUD`)
 
-项目文件夹中 router 有两个文件， cloud 和 local。
-cloud 表示部署在云端时，此文件内的接口会被调用；local 表示部署在边缘端时，此文件内的接口会被调用。
+- Uses **SQLite** for lightweight persistent storage.
+- Must be **accessible from the public internet**.
+- Responsible for:
+  - Sending requests to DingTalk servers (e.g., send message, get user info).
+  - Returning results to the local service.
 
-## 三、基本概念
+### 🖥️ Local Deployment (`DeployMode.LOCAL`)
 
-**CorpId**
-CorpId是企业在钉钉中的标识，每个企业拥有唯一的CorpId。
+- Uses **PostgreSQL** for local storage.
+- Must be able to **access the cloud service** and receive responses.
+- Receives data from the cloud and stores user-related information locally.
 
-**SuiteKey/SuiteSecret**
-SuiteKey是第三方企业应用的唯一身份标识，SuiteSecret是对应的调用密钥。
+## 🌐 Request Flow
 
+```mermaid
+sequenceDiagram
+    participant FE as Frontend
+    participant Local as Local Service
+    participant Cloud as Cloud Service
+    participant DingTalk as DingTalk API
 
-**AgentId**
-每个应用都拥有唯一的AgentId。企业在钉钉开发者后台创建应用时，或者在企业授权开通第三方企业应用时，系统会自动生成一个AgentId。
+    FE->>Cloud: Request to send message / get user info
+    Cloud->>DingTalk: Call DingTalk API
+    DingTalk-->>Cloud: Response
+    Cloud->>Local: Forward processed result
+    Local-->>FE: Return response to frontend
 
-更多内容请参考[官方文档](https://open.dingtalk.com/document/org/basic-concepts)
+    Note over Cloud,Local: Cloud stores results, Local stores user data
+```
 
+### Project Structure
 
-## 四、基本流程
-遵循 OAuth2.0 流程，获取用户身份信息。
+```
+.
+├── router/
+│   ├── cloud/      # Cloud-side API endpoints
+│   └── local/      # Local-side API endpoints
+├── core/
+├── schema/
+├── main.py
+```
 
-![image info](./pictures/绑定用户.jpeg)
+## 🔑 Key Concepts
+
+- **CorpId**: Unique identifier for an enterprise on DingTalk.
+- **SuiteKey / SuiteSecret**: Credentials used by third-party enterprise apps.
+- **AgentId**: Unique ID for each app authorized by the enterprise.
+
+## 🔄 Authentication Flow
+
+- Follows **OAuth2.0 authorization code flow**.
+- Redirects users to DingTalk for login and consent.
+- After authorization, retrieves the `access_token` and user info from DingTalk servers.
+
+## 📚 Reference
+
+For full integration details, refer to [Alibaba DingTalk Open Platform Docs (EN)](https://open.dingtalk.com/document/orgapp-server/introduction).
+
+## 📦 Tech Stack
+
+- **FastAPI** – Web framework
+- **SQLite / PostgreSQL** – Storage backend for cloud and local modes
+- **Pydantic** – Data validation
+- **Uvicorn** – ASGI server
